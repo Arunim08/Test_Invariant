@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
-- ingress.yaml  # Optional for Kind
+
 namespace: springboot-demo  # Dedicated namespace
 commonLabels:
   app.kubernetes.io/name: springboot-demo-app
