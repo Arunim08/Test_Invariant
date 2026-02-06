@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- deployment.yaml
+- service.yaml
+- ingress.yaml  # Optional for Kind
+namespace: springboot-demo  # Dedicated namespace
+commonLabels:
+  app.kubernetes.io/name: springboot-demo-app
+  app.kubernetes.io/instance: local
+  app.kubernetes.io/version: "1.0.0"
+  arunim/owner: "yes"  # Your personal label
