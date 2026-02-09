@@ -17,7 +17,7 @@ spec:
       containers:
         - name: app
           image: springboot-demo-app:local
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: never
           ports:
             - name: http
               containerPort: 8080
