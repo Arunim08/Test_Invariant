@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  # Minimal local settings – override as needed
+  SERVER_PORT: "8080"
+  SPRING_APPLICATION_NAME: "springboot-demo-app"
+  # Add more from your application.yml if externalized
+  # LOGGING_LEVEL_ROOT: "INFO"
