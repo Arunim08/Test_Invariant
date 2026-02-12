@@ -5,9 +5,9 @@ resources:
 - service.yaml
 
 namespace: springboot-demo  # Dedicated namespace
-Labels:
-  app.kubernetes.io/name: springboot-demo-app
-  app.kubernetes.io/instance: local
-  app.kubernetes.io/version: "1.0.0"
-  arunim/owner: "yes"  # Your personal label
-  includeTemplates: true
+labels:
+  - pairs:
+      app: springboot-demo
+      env: local
+    includeSelectors: true    
+    includeTemplates: true   
