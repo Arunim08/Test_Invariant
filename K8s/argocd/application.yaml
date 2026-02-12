@@ -12,7 +12,7 @@ spec:
     path: springboot-demo-app/K8s
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: springboot-demo
   syncPolicy:
     automated:
       prune: true
