@@ -9,7 +9,7 @@ spec:
     # Update this to your repo URL and preferred branch.
     repoURL: https://github.com/Arunim08/Test_Invariant.git
     targetRevision: main
-    path: springboot-demo-app/k8s
+    path: springboot-demo-app/K8s
   destination:
     server: https://kubernetes.default.svc
     namespace: default
