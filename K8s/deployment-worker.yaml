@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-demo-worker
+  labels:
+    app: springboot-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: springboot-demo-worker
+  template:
+    metadata:
+      labels:
+        app: springboot-demo-worker
+    spec:
+      containers:
+      - name: worker
+        image: yourcompany/worker:latest          # ← change to your image
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
