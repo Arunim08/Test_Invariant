@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: worker
-        image: springboot-demo-app:local       # ← change to your image
+        image: registry.gitlab.com/arunim08/myproject/worker:latest      # ← change to your image
         ports:
         - containerPort: 8080
         resources:
