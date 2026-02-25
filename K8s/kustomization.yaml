@@ -3,7 +3,8 @@ kind: Kustomization
 resources:
 - base/deployment.yaml
 - base/service.yaml
-
+- deployment-worker.yaml
+- service-worker.yaml
 namespace: springboot-demo  # Dedicated namespace
 labels:
   - pairs:
