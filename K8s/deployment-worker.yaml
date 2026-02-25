@@ -15,7 +15,7 @@ spec:
         app: springboot-demo-worker
     spec:
       containers:
-      - name: confident_wright
+      - name: worker
         image: springboot-demo-app:local    
         ports:
         - containerPort: 8080
