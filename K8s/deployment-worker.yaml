@@ -1,4 +1,4 @@
-apiVersion: apps/v1
+capiVersion: apps/v1
 kind: Deployment
 metadata:
   name: springboot-demo-worker
@@ -15,8 +15,8 @@ spec:
         app: springboot-demo-worker
     spec:
       containers:
-      - name: worker
-        image: registry.gitlab.com/arunim08/myproject/worker:latest      # ← change to your image
+      - name: confident_wright
+        image: springboot-demo-app:local    
         ports:
         - containerPort: 8080
         resources:
