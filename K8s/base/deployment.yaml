@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: springboot-demo-app:local
+        image: Aruxnim/springboot-frontend:1.2.3
         imagePullPolicy: Never
         ports:
         - containerPort: 8080
@@ -42,7 +42,7 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 10
           failureThreshold: 3
-        resources:   # ← added: laptop-friendly
+        resources:   
           requests:
             cpu: "200m"
             memory: "256Mi"
