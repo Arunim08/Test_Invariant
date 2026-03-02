@@ -4,8 +4,8 @@ metadata:
   name: springboot-demo-worker
   labels:
     app: springboot-demo
-spec:
-  
+spec:  
+  replicas: 1
   selector:
     matchLabels:
       app: springboot-demo-worker
