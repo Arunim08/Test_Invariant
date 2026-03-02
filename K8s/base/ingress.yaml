@@ -19,7 +19,7 @@ spec:
           service:
             name: springboot-demo 
             port:
-              number: 8080 
+              number: 80:8080 
   tls:
   - hosts:
     - springboot-demo.yourdomain.com
