@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: app
-        image: arunxim/springboot-frontend 
-        imagePullPolicy: Never
+        image: arunxim/springboot-frontend  
+        imagePullPolicy: Always 
         ports:
         - containerPort: 8080
         envFrom:
