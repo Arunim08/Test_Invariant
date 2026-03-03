@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: Aruxnim/springboot-frontend:1.2.3
+        image: arunxim/springboot-frontend 
         imagePullPolicy: Never
         ports:
         - containerPort: 8080

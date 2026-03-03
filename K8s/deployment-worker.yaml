@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: your-repo/springboot-frontend:1.2.3
+        image: arunxim/springboot-frontend
         ports:
         - containerPort: 8080
         resources:
