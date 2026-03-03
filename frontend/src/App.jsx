@@ -96,7 +96,7 @@ function App() {
   return (
     <div className="page">
       <header className="header">
-        <div className="title">Spring Boot Demo Appss</div>
+        <div className="title">Spring Boot Demo App</div>
         <div className="subtitle">React UI + /api + Actuator health</div>
       </header>
 
