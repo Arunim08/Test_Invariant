@@ -15,7 +15,7 @@ spec:
         app: springboot-demo
     spec:
       containers:
-      - name: zealous_fermat3
+      - name: springboot
         image: arunxim/springboot-frontend:69f5161
         imagePullPolicy: Always 
         ports:
