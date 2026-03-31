@@ -5,7 +5,7 @@ metadata:
   labels:
     app: springboot-demo
 spec:
-  replicas: 1   # start small for local
+  replicas: 1  
   selector:
     matchLabels:
       app: springboot-demo
@@ -15,8 +15,8 @@ spec:
         app: springboot-demo
     spec:
       containers:
-      - name: app
-        image: arunxim/springboot-frontend  
+      - name: springboot
+        image: arunxim/springboot-frontend:69f5161
         imagePullPolicy: Always 
         ports:
         - containerPort: 8080
