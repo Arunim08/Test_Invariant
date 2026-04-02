@@ -91,15 +91,20 @@ jobs:
           with open(file_path, 'r') as f:
               content = f.read()
           
-          # Replace the image line
+          # Replace the image line - handle both with and without registry prefix
+          # Matches: arunxim/springboot-frontend:TAG or docker.io/arunxim/springboot-frontend:TAG
           updated = re.sub(
-              r'image: arunxim/springboot-frontend:[^\s]+',
+              r'image:\s*(docker\.io/)?arunxim/springboot-frontend:[^\s]+',
               f'image: {new_image}',
               content
           )
           
           if updated == content:
               print("WARNING: No changes made to file!")
+              print("Showing current content around image:")
+              for i, line in enumerate(content.split('\n'), 1):
+                  if 'springboot-frontend' in line or 'image:' in line:
+                      print(f"Line {i}: {line}")
               sys.exit(1)
           
           with open(file_path, 'w') as f:
