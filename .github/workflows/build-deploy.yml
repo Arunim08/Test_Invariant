@@ -77,17 +77,17 @@ jobs:
         run: |
           NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
           echo "New image: ${NEW_IMAGE}"
-          echo "Old pattern: image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:.*"
           
-          # Use a more reliable approach with git
-          python3 << 'EOF'
+          # Use Python with environment variable to avoid shell expansion issues
+          python3 << EOF
           import re
+          import os
+          
+          new_image = os.environ.get('NEW_IMAGE', '')
+          print(f"Replacing image tag with: {new_image}")
           
           with open('K8s/base/deployment.yaml', 'r') as f:
               content = f.read()
-          
-          new_image = "${NEW_IMAGE}"
-          print(f"Replacing image tag with: {new_image}")
           
           # Replace the image line
           updated = re.sub(
@@ -99,11 +99,13 @@ jobs:
           with open('K8s/base/deployment.yaml', 'w') as f:
               f.write(updated)
           
-          print("Updated deployment.yaml")
+          print("Updated deployment.yaml successfully")
           EOF
           
           echo "Current image line:"
           grep "image: arunxim" K8s/base/deployment.yaml
+        env:
+          NEW_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
 
       - name: Commit and push deployment update
         if: github.event_name == 'push'
