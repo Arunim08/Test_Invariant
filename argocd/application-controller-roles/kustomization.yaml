@@ -5,3 +5,5 @@ resources:
 - argocd-application-controller-sa.yaml
 - argocd-application-controller-role.yaml
 - argocd-application-controller-rolebinding.yaml
+- argocd-application-controller-clusterrole.yaml
+- argocd-application-controller-clusterrolebinding.yaml
