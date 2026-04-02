@@ -82,11 +82,13 @@ jobs:
           python3 << EOF
           import re
           import os
+          import sys
           
           new_image = os.environ.get('NEW_IMAGE', '')
           print(f"Replacing image tag with: {new_image}")
           
-          with open('K8s/base/deployment.yaml', 'r') as f:
+          file_path = 'K8s/base/deployment.yaml'
+          with open(file_path, 'r') as f:
               content = f.read()
           
           # Replace the image line
@@ -96,14 +98,21 @@ jobs:
               content
           )
           
-          with open('K8s/base/deployment.yaml', 'w') as f:
+          if updated == content:
+              print("WARNING: No changes made to file!")
+              sys.exit(1)
+          
+          with open(file_path, 'w') as f:
               f.write(updated)
           
           print("Updated deployment.yaml successfully")
-          EOF
           
-          echo "Current image line:"
-          grep "image: arunxim" K8s/base/deployment.yaml
+          # Show what changed
+          with open(file_path, 'r') as f:
+              for i, line in enumerate(f, 1):
+                  if 'springboot-frontend' in line:
+                      print(f"Line {i}: {line.rstrip()}")
+          EOF
         env:
           NEW_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
 
