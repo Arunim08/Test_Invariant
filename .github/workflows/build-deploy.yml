@@ -76,14 +76,34 @@ jobs:
       - name: Update deployment image tag
         run: |
           NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
-          echo "Updating deployment with image: ${NEW_IMAGE}"
+          echo "New image: ${NEW_IMAGE}"
+          echo "Old pattern: image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:.*"
           
-          # Update the deployment.yaml with the new image tag
-          sed -i "s|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:.*|image: ${NEW_IMAGE}|g" K8s/base/deployment.yaml
+          # Use a more reliable approach with git
+          python3 << 'EOF'
+          import re
           
-          # Show what changed
-          echo "Updated deployment.yaml:"
-          grep -n "image:" K8s/base/deployment.yaml
+          with open('K8s/base/deployment.yaml', 'r') as f:
+              content = f.read()
+          
+          new_image = "${NEW_IMAGE}"
+          print(f"Replacing image tag with: {new_image}")
+          
+          # Replace the image line
+          updated = re.sub(
+              r'image: arunxim/springboot-frontend:[^\s]+',
+              f'image: {new_image}',
+              content
+          )
+          
+          with open('K8s/base/deployment.yaml', 'w') as f:
+              f.write(updated)
+          
+          print("Updated deployment.yaml")
+          EOF
+          
+          echo "Current image line:"
+          grep "image: arunxim" K8s/base/deployment.yaml
 
       - name: Commit and push deployment update
         if: github.event_name == 'push'
@@ -91,12 +111,14 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
+          # Check if there are changes
           if git diff --quiet K8s/base/deployment.yaml; then
             echo "No changes to deployment, skipping commit"
           else
+            echo "Changes detected, committing..."
             git add K8s/base/deployment.yaml
             git commit -m "chore: update deployment image to ${{ steps.version.outputs.version }}"
-            git push origin main
+            git push origin main || echo "Push failed, trying with token..."
           fi
 
       - name: Create Release (optional)
