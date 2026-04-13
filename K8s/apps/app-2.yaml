@@ -19,7 +19,7 @@ spec:
       serviceAccountName: microapps
       containers:
       - name: app-2
-        image: arunxim/app-2:latest
+                image: arunxim/app-2:commit-f21bb6cd
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
