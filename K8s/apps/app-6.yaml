@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-6
+  namespace: microapps
+  labels:
+    app: app-6
+    type: py-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-6
+  template:
+    metadata:
+      labels:
+        app: app-6
+    spec:
+      serviceAccountName: microapps
+      containers:
+      - name: app-6
+        image: arunxim/app-6:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "150m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-6
+  namespace: microapps
+  labels:
+    app: app-6
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: app-6

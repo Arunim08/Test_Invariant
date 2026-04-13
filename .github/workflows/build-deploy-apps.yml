@@ -1,0 +1,186 @@
+name: Build and Deploy Multi-Apps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/**'
+      - 'K8s/apps/**'
+      - '.github/workflows/build-deploy-apps.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.2.3) - leave empty for commit SHA'
+        required: false
+
+env:
+  REGISTRY: docker.io
+  DOCKER_ORG: arunxim
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  detect-apps:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed apps
+        id: set-matrix
+        run: |
+          # Define all apps
+          APPS='[
+            {"name":"app-1","path":"apps/app-1-go-api","type":"go"},
+            {"name":"app-2","path":"apps/app-2-go-worker","type":"go"},
+            {"name":"app-3","path":"apps/app-3-go-cache","type":"go"},
+            {"name":"app-4","path":"apps/app-4-py-api","type":"python"},
+            {"name":"app-5","path":"apps/app-5-py-service","type":"python"},
+            {"name":"app-6","path":"apps/app-6-py-monitor","type":"python"},
+            {"name":"app-7","path":"apps/app-7-node-web","type":"node"},
+            {"name":"app-8","path":"apps/app-8-node-api","type":"node"},
+            {"name":"app-9","path":"apps/app-9-node-worker","type":"node"},
+            {"name":"app-10","path":"apps/app-10-java-service","type":"java"}
+          ]'
+          
+          echo "matrix={\"include\":$APPS}" >> $GITHUB_OUTPUT
+          echo "Matrix: {\"include\":$APPS}"
+
+  build-and-push:
+    needs: detect-apps
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    strategy:
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.detect-apps.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]; then
+            VERSION=$(echo ${GITHUB_REF#refs/tags/})
+          else
+            VERSION="commit-${GITHUB_SHA::8}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building version: ${VERSION}"
+
+      - name: Check if app changed
+        id: check-changes
+        run: |
+          # Check if this specific app path changed
+          if git diff --quiet HEAD~1 ${{ matrix.path }} 2>/dev/null || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check-changes.outputs.changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: steps.check-changes.outputs.changed == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        if: steps.check-changes.outputs.changed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.path }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.DOCKER_ORG }}/${{ matrix.name }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.DOCKER_ORG }}/${{ matrix.name }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKER_ORG }}/${{ matrix.name }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKER_ORG }}/${{ matrix.name }}:buildcache,mode=max
+
+      - name: Update K8s manifest
+        if: steps.check-changes.outputs.changed == 'true'
+        run: |
+          python3 << EOF
+          import re
+          import os
+          
+          app_name = "${{ matrix.name }}"
+          new_version = "${{ steps.version.outputs.version }}"
+          docker_org = "${{ env.DOCKER_ORG }}"
+          
+          manifest_path = "K8s/apps/${{ matrix.name }}.yaml"
+          
+          with open(manifest_path, 'r') as f:
+              content = f.read()
+          
+          # Replace image tag
+          pattern = rf'image:\s*{docker_org}/{app_name}:[^\s]+'
+          replacement = f'image: {docker_org}/{app_name}:{new_version}'
+          updated = re.sub(pattern, replacement, content)
+          
+          if updated != content:
+              with open(manifest_path, 'w') as f:
+                  f.write(updated)
+              print(f"Updated {manifest_path} with version {new_version}")
+          else:
+              print(f"No image tag found or no changes for {app_name}")
+          EOF
+
+      - name: Commit and push updates
+        if: steps.check-changes.outputs.changed == 'true' && github.event_name == 'push'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add K8s/apps/${{ matrix.name }}.yaml
+            git commit -m "chore: update ${{ matrix.name }} image to ${{ steps.version.outputs.version }}"
+            git push origin main || true
+          fi
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## Multi-App Release
+            All 10 microapps have been built and pushed:
+            
+            - arunxim/app-1:${{ github.ref }}
+            - arunxim/app-2:${{ github.ref }}
+            - arunxim/app-3:${{ github.ref }}
+            - arunxim/app-4:${{ github.ref }}
+            - arunxim/app-5:${{ github.ref }}
+            - arunxim/app-6:${{ github.ref }}
+            - arunxim/app-7:${{ github.ref }}
+            - arunxim/app-8:${{ github.ref }}
+            - arunxim/app-9:${{ github.ref }}
+            - arunxim/app-10:${{ github.ref }}
+          draft: false
+          prerelease: false
