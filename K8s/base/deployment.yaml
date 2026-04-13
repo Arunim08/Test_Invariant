@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: springboot
-        image: docker.io/arunxim/springboot-frontend:commit-1f32f512
+        image: docker.io/arunxim/springboot-frontend:commit-f8209347
         imagePullPolicy: Always 
         ports:
         - containerPort: 8080
