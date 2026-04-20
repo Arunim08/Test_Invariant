@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Arunim08/Test_Invariant.git
-    targetRevision: HEAD
+    targetRevision: main
     path: K8s/app-6
   destination:
     server: https://kubernetes.default.svc
