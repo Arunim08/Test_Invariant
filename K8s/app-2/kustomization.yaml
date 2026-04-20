@@ -4,5 +4,4 @@ kind: Kustomization
 namespace: microapps
 
 resources:
-  - ../../apps/00-namespace.yaml
   - app.yaml
