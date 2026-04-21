@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-7
+  namespace: microapps
+  labels:
+    app: app-7
+    type: node-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-7
+  template:
+    metadata:
+      labels:
+        app: app-7
+    spec:
+      serviceAccountName: microapps
+      containers:
+      - name: app-7
+        image: arunxim/app-7:commit-f21bb6cd
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "192Mi"
+            cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-7
+  namespace: microapps
+  labels:
+    app: app-7
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: app-7

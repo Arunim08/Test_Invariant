@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+images:
+- name: quay.io/argoproj/argocd
+  newName: quay.io/argoproj/argocd
+  newTag: latest
+resources:
+- configmaps/
+- application-controller-roles/
+##- application-controller/
+- application-controller-deployment/
+- applicationset-controller/
+- repo-server/
+- server/
+- redis/
+- crds/
