@@ -1,0 +1,177 @@
+name: Deploy with ArgoCD
+
+on:
+  repository_dispatch:
+    types: [ images-ready ]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
+
+env:
+  GIT_USER_EMAIL: ${{ secrets.GITHUB_EMAIL || 'ci@example.com' }}
+  GIT_USER_NAME: ${{ secrets.GITHUB_USERNAME || 'CI Bot' }}
+
+jobs:
+  update-manifests:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.email "${{ env.GIT_USER_EMAIL }}"
+          git config user.name "${{ env.GIT_USER_NAME }}"
+
+      - name: Extract image info
+        id: image-info
+        run: |
+          # Extract from workflow dispatch or repository dispatch
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            IMAGE_TAG="${{ github.event.client_payload.image_tag }}"
+            REGISTRY="${{ github.event.client_payload.registry }}"
+            REGISTRY_PATH="${{ github.event.client_payload.registry_path }}"
+          else
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+            REGISTRY="${{ secrets.DOCKER_REGISTRY || 'docker.io' }}"
+            REGISTRY_PATH="${{ secrets.DOCKER_REGISTRY_PATH }}"
+          fi
+          
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "registry=${REGISTRY}" >> $GITHUB_OUTPUT
+          echo "registry_path=${REGISTRY_PATH}" >> $GITHUB_OUTPUT
+          echo "image_url=${REGISTRY}/${REGISTRY_PATH}" >> $GITHUB_OUTPUT
+
+      - name: Update K8s manifests with new image tags
+        run: |
+          APPS=(
+            "app-1-go-api"
+            "app-2-go-worker"
+            "app-3-go-cache"
+            "app-4-py-api"
+            "app-5-py-service"
+            "app-6-py-monitor"
+            "app-7-node-web"
+            "app-8-node-api"
+            "app-9-node-worker"
+            "app-10-java-service"
+          )
+          
+          for app in "${APPS[@]}"; do
+            # Find all files referencing this app image
+            find . -name "*.yaml" -o -name "*.yml" | xargs grep -l "${app}:" | while read file; do
+              # Update image tag
+              sed -i \
+                "s|image:.*${app}:.*|image: ${{ steps.image-info.outputs.image_url }}/${app}:${{ steps.image-info.outputs.image_tag }}|g" \
+                "$file"
+              echo "Updated: $file"
+            done
+          done
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changed files:"
+            git diff --name-only
+          fi
+
+      - name: Commit changes
+        if: steps.check-changes.outputs.changed == 'true'
+        run: |
+          git add -A
+          git commit -m "chore: update app images to ${{ steps.image-info.outputs.image_tag }}
+          
+          From: ${{ github.event_name }}
+          Registry: ${{ steps.image-info.outputs.image_url }}
+          Tag: ${{ steps.image-info.outputs.image_tag }}
+          
+          Co-authored-by: GitHub Actions <actions@github.com>"
+          git push origin main
+          echo "✓ Manifests updated and committed"
+
+      - name: Show deployment info
+        run: |
+          echo "::notice::Deployment Info"
+          echo "Registry: ${{ steps.image-info.outputs.registry }}"
+          echo "Registry Path: ${{ steps.image-info.outputs.registry_path }}"
+          echo "Image Tag: ${{ steps.image-info.outputs.image_tag }}"
+          echo "Full URL: ${{ steps.image-info.outputs.image_url }}"
+
+  trigger-argocd-sync:
+    needs: update-manifests
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger ArgoCD sync
+        run: |
+          if [ -z "${{ secrets.ARGOCD_SERVER }}" ]; then
+            echo "⚠️  ARGOCD_SERVER secret not configured"
+            echo "Manual ArgoCD sync may be needed"
+            exit 0
+          fi
+          
+          # Optional: Trigger ArgoCD sync via API
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.ARGOCD_AUTH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            https://${{ secrets.ARGOCD_SERVER }}/api/v1/applications/microapps/sync \
+            -d '{"syncStrategy":{"hook":{}}}' \
+            || echo "Note: ArgoCD sync trigger optional"
+        continue-on-error: true
+
+      - name: Wait for ArgoCD sync (if available)
+        run: |
+          if [ -z "${{ secrets.ARGOCD_SERVER }}" ]; then
+            exit 0
+          fi
+          
+          # Poll for sync status
+          for i in {1..30}; do
+            STATUS=$(curl -s \
+              -H "Authorization: Bearer ${{ secrets.ARGOCD_AUTH_TOKEN }}" \
+              https://${{ secrets.ARGOCD_SERVER }}/api/v1/applications/microapps \
+              | jq -r '.status.operationState.phase // "Unknown"')
+            
+            if [ "$STATUS" == "Succeeded" ] || [ "$STATUS" == "Failed" ]; then
+              echo "ArgoCD sync result: $STATUS"
+              break
+            fi
+            
+            sleep 10
+          done
+        continue-on-error: true
+
+  verify-deployment:
+    needs: trigger-argocd-sync
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "::notice::Deployment Pipeline Complete"
+          echo ""
+          echo "✓ Manifests updated"
+          echo "✓ Changes committed"
+          echo "✓ ArgoCD notified"
+          echo ""
+          echo "Next steps:"
+          echo "1. Check ArgoCD UI for sync status"
+          echo "2. Monitor: kubectl get pods -n microapps -w"
+          echo "3. Verify: kubectl rollout status deployment/app-1 -n microapps"

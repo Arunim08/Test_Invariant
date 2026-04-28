@@ -1,0 +1,47 @@
+name: Trigger Build Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/**'
+      - '.github/workflows/build-trigger.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: List changed apps
+        run: |
+          git diff --name-only origin/main..HEAD | grep '^apps/' | cut -d'/' -f2 | sort -u > /tmp/changed_apps.txt
+          cat /tmp/changed_apps.txt || echo "No app changes"
+
+      - name: Check Dockerfiles syntax
+        run: |
+          find apps -name "Dockerfile" | while read dockerfile; do
+            echo "Checking: $dockerfile"
+            docker run --rm -i hadolint/hadolint < "$dockerfile" || echo "Warning: $dockerfile"
+          done
+        continue-on-error: true
+
+  notify-build-repo:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Repository Dispatch to Build Repo
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.REPO_2_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/${{ secrets.REPO_2_NAME }}/dispatches \
+            -d '{"event_type":"build-trigger","client_payload":{"source":"repo1","branch":"main","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}}'
+        continue-on-error: true

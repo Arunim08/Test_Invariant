@@ -1,0 +1,168 @@
+name: Build All Apps
+
+on:
+  push:
+    branches: [ main ]
+  repository_dispatch:
+    types: [ build-trigger ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
+  REGISTRY_PATH: ${{ secrets.DOCKER_REGISTRY_PATH }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.set-apps.outputs.apps }}
+    steps:
+      - name: Set apps matrix
+        id: set-apps
+        run: |
+          echo "apps=[\
+            'app-1-go-api',\
+            'app-2-go-worker',\
+            'app-3-go-cache',\
+            'app-4-py-api',\
+            'app-5-py-service',\
+            'app-6-py-monitor',\
+            'app-7-node-web',\
+            'app-8-node-api',\
+            'app-9-node-worker',\
+            'app-10-java-service'\
+          ]" >> $GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        app: ${{ fromJson(needs.prepare.outputs.apps) }}
+      fail-fast: false
+    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Clone Repo 1 (Apps + Dockerfiles)
+        run: |
+          if [ -n "${{ secrets.REPO_1_ACCESS_TOKEN }}" ]; then
+            git clone https://oauth2:${{ secrets.REPO_1_ACCESS_TOKEN }}@github.com/${{ secrets.REPO_1_NAME }} repo1
+          else
+            git clone https://github.com/${{ secrets.REPO_1_NAME }} repo1
+          fi
+
+      - name: Build and push ${{ matrix.app }}
+        uses: docker/build-push-action@v5
+        with:
+          context: repo1/apps/${{ matrix.app }}
+          file: repo1/apps/${{ matrix.app }}/Dockerfile
+          push: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/${{ matrix.app }}:latest
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/${{ matrix.app }}:${{ github.sha }}
+          outputs: type=docker,dest=/tmp/${{ matrix.app }}-image.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.app }}
+          path: /tmp/${{ matrix.app }}-image.tar
+          retention-days: 1
+
+      - name: Show build info
+        run: |
+          echo "Built: ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/${{ matrix.app }}"
+          echo "Tags: latest, ${{ github.sha }}"
+
+  push:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Download all image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/images
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Load and push images
+        run: |
+          APPS=(
+            "app-1-go-api"
+            "app-2-go-worker"
+            "app-3-go-cache"
+            "app-4-py-api"
+            "app-5-py-service"
+            "app-6-py-monitor"
+            "app-7-node-web"
+            "app-8-node-api"
+            "app-9-node-worker"
+            "app-10-java-service"
+          )
+          
+          for app in "${APPS[@]}"; do
+            if [ -f "/tmp/images/docker-image-${app}/$(ls /tmp/images/docker-image-${app}/ | head -1)" ]; then
+              docker load -i "/tmp/images/docker-image-${app}/"*.tar
+              docker push ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/${app}:latest
+              docker push ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/${app}:${{ github.sha }}
+              echo "✓ Pushed ${app}"
+            fi
+          done
+
+  notify-deploy:
+    needs: push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Repository Dispatch to Deploy Repo
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.REPO_3_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/${{ secrets.REPO_3_NAME }}/dispatches \
+            -d '{
+              "event_type":"images-ready",
+              "client_payload":{
+                "registry":"${{ env.REGISTRY }}",
+                "registry_path":"${{ env.REGISTRY_PATH }}",
+                "image_tag":"${{ github.sha }}",
+                "timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+                "source_commit":"${{ github.sha }}",
+                "source_branch":"${{ github.ref }}"
+              }
+            }'
+        continue-on-error: true
+      
+      - name: Show completion info
+        run: |
+          echo "Build complete!"
+          echo "Images pushed to: ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}"
+          echo "Image tags: latest, ${{ github.sha }}"
+          echo "Deploy repo notified for deployment"

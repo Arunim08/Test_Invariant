@@ -1,0 +1,128 @@
+version: '3.9'
+
+services:
+  app-1-go-api:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-1-go-api
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8080"
+    environment:
+      - APP_NAME=app-1
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  app-2-go-worker:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-2-go-worker
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=app-2
+      - LOG_LEVEL=info
+    depends_on:
+      - app-1-go-api
+
+  app-3-go-cache:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-3-go-cache
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8080"
+    environment:
+      - APP_NAME=app-3
+      - LOG_LEVEL=info
+
+  app-4-py-api:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-4-py-api
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8080"
+    environment:
+      - APP_NAME=app-4
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  app-5-py-service:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-5-py-service
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=app-5
+      - LOG_LEVEL=info
+    depends_on:
+      - app-4-py-api
+
+  app-6-py-monitor:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-6-py-monitor
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8080"
+    environment:
+      - APP_NAME=app-6
+      - LOG_LEVEL=info
+
+  app-7-node-web:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-7-node-web
+      dockerfile: Dockerfile
+    ports:
+      - "8007:8080"
+    environment:
+      - APP_NAME=app-7
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  app-8-node-api:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-8-node-api
+      dockerfile: Dockerfile
+    ports:
+      - "8008:8080"
+    environment:
+      - APP_NAME=app-8
+      - PORT=8080
+
+  app-9-node-worker:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-9-node-worker
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=app-9
+      - LOG_LEVEL=info
+    depends_on:
+      - app-7-node-web
+
+  app-10-java-service:
+    build:
+      context: ../repo1-apps-dockerfiles/apps/app-10-java-service
+      dockerfile: Dockerfile
+    ports:
+      - "8010:8080"
+    environment:
+      - APP_NAME=app-10
+      - SERVER_PORT=8080
+      - JAVA_OPTS=-Xmx256m -Xms128m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    name: multiapp-network
+    driver: bridge
